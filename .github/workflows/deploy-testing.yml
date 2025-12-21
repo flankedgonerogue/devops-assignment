@@ -71,15 +71,15 @@ jobs:
 
       - name: Deploy to Testing Server
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_IMAGE: ${{ steps.build-image.outputs.image }}
-          AWS_REGION: ${{ env.AWS_REGION }}
         with:
           host: ${{ secrets.TESTING_SERVER_IP }}
           username: ${{ secrets.AWS_SSH_USERNAME }}
           key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          envs: ECR_REGISTRY,ECR_IMAGE,AWS_REGION
           script: |
+            export ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+            export ECR_IMAGE="${{ steps.build-image.outputs.image }}"
+            export AWS_REGION="${{ env.AWS_REGION }}"
             source ~/.bashrc || source ~/.profile || true
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
             docker pull $ECR_IMAGE
