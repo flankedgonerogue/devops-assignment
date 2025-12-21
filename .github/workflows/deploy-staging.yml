@@ -1,0 +1,115 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deploy_message:
+        description: 'Deployment message/reason'
+        required: false
+        default: 'Manual deployment trigger'
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  build-test-deploy:
+    name: Build, Test, Lint & Deploy to Staging
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Project
+        run: npm run build-react
+
+      - name: Run Unit Tests
+        run: npm run test-react
+
+      - name: Run API Tests
+        run: npm run test-API
+
+      - name: Run ESLint
+        run: npx eslint src/ --ext .js,.jsx --max-warnings 0 || true
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build/
+          retention-days: 14
+
+      - name: Deploy to Staging Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_SERVER_IP }}
+          username: ${{ secrets.AWS_SSH_USERNAME }}
+          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ secrets.APP_DIRECTORY }}
+            git fetch origin
+            git checkout main
+            git pull origin main
+            npm ci
+            npm run build-react
+            pm2 restart all || pm2 start index.js --name "react-node-app"
+
+      - name: Send Success Email to Team
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Staging Deployment Successful - ${{ github.repository }}"
+          to: ${{ secrets.QA_EMAIL }}
+          from: ${{ secrets.SMTP_FROM_EMAIL }}
+          html_body: |
+            <h1>Staging Server Deployment Successful</h1>
+            <p>Please check it out at <a href="http://${{ secrets.STAGING_SERVER_IP }}">http://${{ secrets.STAGING_SERVER_IP }}</a></p>
+
+            <h3>Deployment Details</h3>
+            <p>
+              Repository: ${{ github.repository }}
+              Branch: main
+              Commit: ${{ github.sha }}
+              Commit Message: ${{ github.event.head_commit.message }}
+              Triggered By: ${{ github.actor }}
+            </p>
+
+      - name: Send Failure Email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Staging Deployment Failed - ${{ github.repository }}"
+          to: ${{ secrets.QA_EMAIL }},${{ github.event.head_commit.author.email }}
+          from: ${{ secrets.SMTP_FROM_EMAIL }}
+          html_body: |
+            <h1>Staging Server Deployment Failed</h1>
+            <p>Please review the workflow logs and fix the issues before re-running the deployment.</p>
+            <h3>Deployment Details</h3>
+            <p>
+              Repository: ${{ github.repository }}
+              Branch: main
+              Commit: ${{ github.sha }}
+              Commit Message: ${{ github.event.head_commit.message }}
+              Triggered By: ${{ github.actor }}
+            </p>
+
