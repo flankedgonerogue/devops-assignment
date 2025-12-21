@@ -13,6 +13,8 @@ on:
 
 env:
   NODE_VERSION: '18'
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_STAGING }}
 
 jobs:
   build-test-deploy:
