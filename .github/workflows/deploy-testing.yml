@@ -17,10 +17,26 @@ env:
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_TESTING }}
 
 jobs:
-  ci-build-deploy:
-    name: CI, Build Docker & Deploy to Testing
+  setup:
+    name: Setup Environment
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+  ci:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+    needs: setup
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -45,6 +61,14 @@ jobs:
 
       - name: Run ESLint
         run: npx eslint src/ --ext .js,.jsx --max-warnings 0 || true
+
+  cd:
+    name: Continuous Deployment
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -112,8 +136,13 @@ jobs:
               Image: ${{ steps.build-image.outputs.image }}
             </p>
 
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [setup, ci, cd]
+    if: failure()
+    steps:
       - name: Send Failure Email
-        if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
@@ -134,4 +163,3 @@ jobs:
               PR Title: ${{ github.event.pull_request.title || 'N/A' }}
               Triggered By: ${{ github.actor }}
             </p>
-
