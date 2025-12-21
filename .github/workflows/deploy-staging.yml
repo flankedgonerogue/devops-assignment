@@ -66,7 +66,7 @@ jobs:
             git pull origin main
             npm install
             npm run build-react
-            pm2 restart all || pm2 start index.js --name "react-node-app"
+            sudo pm2 restart all || sudo pm2 start index.js --name "react-node-app"
 
       - name: Send Success Email to Team
         if: success()
