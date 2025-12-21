@@ -13,12 +13,10 @@ on:
 
 env:
   NODE_VERSION: '18'
-  AWS_REGION: ${{ secrets.AWS_REGION }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_STAGING }}
 
 jobs:
-  ci-build-deploy:
-    name: CI, Build Docker & Deploy to Staging
+  build-test-deploy:
+    name: Build, Test, Lint & Deploy to Staging
     runs-on: ubuntu-latest
 
     steps:
@@ -46,46 +44,29 @@ jobs:
       - name: Run ESLint
         run: npx eslint src/ --ext .js,.jsx --max-warnings 0 || true
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          name: build
+          path: build/
+          retention-days: 14
 
       - name: Deploy to Staging Server
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_IMAGE: ${{ steps.build-image.outputs.image }}
-          AWS_REGION: ${{ env.AWS_REGION }}
         with:
           host: ${{ secrets.STAGING_SERVER_IP }}
           username: ${{ secrets.AWS_SSH_USERNAME }}
           key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
           script: |
             source ~/.bashrc || source ~/.profile || true
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
-            docker pull $ECR_IMAGE
-            docker stop react-node-app || true
-            docker rm react-node-app || true
-            docker run -d -p 80:80 --name react-node-app --restart unless-stopped $ECR_IMAGE
+            [ -s "$HOME/.nvm/nvm.sh" ] && source "$HOME/.nvm/nvm.sh" || true
+            cd ${{ secrets.APP_DIRECTORY }}
+            git fetch origin
+            git checkout main
+            git pull origin main
+            npm install
+            npm run build-react
+            sudo pm2 restart all || sudo pm2 start index.js --name "react-node-app"
 
       - name: Send Success Email to Team
         if: success()
@@ -109,7 +90,6 @@ jobs:
               Commit: ${{ github.sha }}
               Commit Message: ${{ github.event.head_commit.message }}
               Triggered By: ${{ github.actor }}
-              Image: ${{ steps.build-image.outputs.image }}
             </p>
 
       - name: Send Failure Email
