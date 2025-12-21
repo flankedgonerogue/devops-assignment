@@ -58,6 +58,8 @@ jobs:
           username: ${{ secrets.AWS_SSH_USERNAME }}
           key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
           script: |
+            source ~/.bashrc || source ~/.profile || true
+            [ -s "$HOME/.nvm/nvm.sh" ] && source "$HOME/.nvm/nvm.sh" || true
             cd ${{ secrets.APP_DIRECTORY }}
             git fetch origin
             git checkout main
