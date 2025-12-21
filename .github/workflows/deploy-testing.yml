@@ -30,7 +30,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build Project
         run: npm run build-react
@@ -58,11 +58,13 @@ jobs:
           username: ${{ secrets.AWS_SSH_USERNAME }}
           key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
           script: |
+            source ~/.bashrc || source ~/.profile || true
+            [ -s "$HOME/.nvm/nvm.sh" ] && source "$HOME/.nvm/nvm.sh" || true
             cd ${{ secrets.APP_DIRECTORY }}
             git fetch origin
             git checkout ${{ github.head_ref || github.ref_name }}
             git pull origin ${{ github.head_ref || github.ref_name }}
-            npm ci
+            npm install
             npm run build-react
             pm2 restart all || pm2 start index.js --name "react-node-app"
 
