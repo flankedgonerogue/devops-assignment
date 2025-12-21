@@ -17,9 +17,10 @@ env:
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_TESTING }}
 
 jobs:
-  ci:
-    name: Continuous Integration
+  build-test-deploy:
+    name: Build, Test, Lint & Deploy to Testing
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -44,14 +45,6 @@ jobs:
 
       - name: Run ESLint
         run: npx eslint src/ --ext .js,.jsx --max-warnings 0 || true
-
-  cd:
-    name: Continuous Deployment
-    runs-on: ubuntu-latest
-    needs: ci
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -119,13 +112,8 @@ jobs:
               Image: ${{ steps.build-image.outputs.image }}
             </p>
 
-  notify-failure:
-    name: Notify on Failure
-    runs-on: ubuntu-latest
-    needs: [ci, cd]
-    if: failure()
-    steps:
       - name: Send Failure Email
+        if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
