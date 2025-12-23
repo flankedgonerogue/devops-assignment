@@ -1,6 +1,11 @@
 # ReactNodeTesting
 
-- to make pr
+- to make prnpm
+
+issues i faced:
+- libatomic1 missing in ubuntu for node for some reason
+- find the mailtrap.io website name (I did not remember and a google search didn't work for some reason, chatgpt did however)
+- for some reason github actions couldn't find npm and pm2 when they were clearly installed and working (Realized issue was due to the ssh action command to entering bash first so I sourced it)
 
 A sample React and Node/Express shopping cart application demonstrating comprehensive testing techniques using **React Testing Library** and **Jest**.
 
